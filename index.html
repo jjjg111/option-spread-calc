@@ -1,20 +1,71 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1020" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="期权价差" />
-  <meta name="application-name" content="期权价差" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icon.svg" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-  <title>期权价差计算器</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1020" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="期权价差" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<title>期权价差计算器</title>
+<style>
+:root{--bg0:#0b1020;--card:rgba(22,29,52,.78);--stroke:rgba(255,255,255,.08);--text:#eef2ff;--muted:#93a0c2;--ideal:#34d399;--ideal-bg:rgba(52,211,153,.12);--ok:#fbbf24;--ok-bg:rgba(251,191,36,.12);--no:#f87171;--no-bg:rgba(248,113,113,.12);--accent:#7c9cff}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(1200px 600px at 10% -10%,#1d2a58 0%,transparent 55%),var(--bg0);color:var(--text);font-family:system-ui,-apple-system,"PingFang SC","Noto Sans SC",sans-serif}
+body{display:flex;justify-content:center;padding:max(20px,env(safe-area-inset-top)) 16px max(36px,env(safe-area-inset-bottom))}
+.wrap{width:min(720px,100%)}h1{margin:0 0 6px;font-size:1.35rem}.sub{color:var(--muted);margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--stroke);border-radius:20px;padding:18px}
+.row-head,.row{display:grid;grid-template-columns:32px 1fr 1fr 40px;gap:8px;align-items:end}
+.row-head{margin-bottom:6px;color:var(--muted);font-size:.72rem;text-transform:uppercase}
+.rows{display:flex;flex-direction:column;gap:8px}
+.idx{height:48px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+input[type=number]{width:100%;background:rgba(8,12,24,.7);border:1px solid var(--stroke);color:var(--text);border-radius:12px;padding:12px;font-size:1.1rem}
+.del{width:40px;height:48px;border:1px solid var(--stroke);border-radius:12px;background:rgba(8,12,24,.45);color:#fca5a5}
+.actions{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:12px}
+button{border:0;border-radius:12px;padding:14px 16px;font-size:1rem;font-weight:700}
+.add{background:rgba(8,12,24,.55);color:var(--text);border:1px solid var(--stroke)}
+.calc{color:#0b1020;background:linear-gradient(180deg,#c7d4ff,#8aa4ff)}
+.hint,.note{margin-top:10px;color:var(--muted);font-size:.78rem}
+.error{margin-top:10px;color:#fca5a5;display:none}
+.results{margin-top:16px;display:none}
+.result-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.result-table th,.result-table td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--stroke)}
+.result-table th{color:var(--muted);font-size:.72rem}
+.badge{display:inline-block;min-width:76px;border-radius:999px;padding:4px 10px;text-align:center;font-weight:800;font-size:.86rem;border:1px solid transparent}
+.ideal{background:var(--ideal-bg);border-color:rgba(52,211,153,.35);color:var(--ideal)}
+.ok{background:var(--ok-bg);border-color:rgba(251,191,36,.35);color:var(--ok)}
+.no{background:var(--no-bg);border-color:rgba(248,113,113,.35);color:var(--no)}
+table.legend{width:100%;border-collapse:collapse;margin-top:16px;font-size:.86rem}
+table.legend th,table.legend td{border:1px solid var(--stroke);padding:8px;text-align:center}
+@media(max-width:560px){.actions{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-<p>placeholder</p>
+<div class="wrap">
+<header><h1>期权价差计算器</h1><div class="sub">多组 Bid / Ask · 价差 ÷ 中间价</div></header>
+<div class="card">
+<div class="row-head"><span>#</span><span>Bid</span><span>Ask</span><span></span></div>
+<div class="rows" id="rows"></div>
+<div class="actions">
+<button class="add" id="add" type="button">+ 增加一组</button>
+<button class="calc" id="calc" type="button">Calculate</button>
+</div>
+<div class="error" id="error"></div>
+<div class="results" id="results"></div>
+<table class="legend"><thead><tr><th></th><th>理想</th><th>还能做</th><th>我不会做</th></tr></thead>
+<tbody><tr><td>价差 / 中间价</td><td>≤ 8%</td><td>8–20%</td><td>&gt; 20%</td></tr></tbody></table>
+</div></div>
+<script>
+const rowsEl=document.getElementById("rows"),resultsEl=document.getElementById("results"),errorEl=document.getElementById("error");
+function classify(p){if(p<=8)return{cls:"ideal",tag:"理想"};if(p<=20)return{cls:"ok",tag:"还能做"};return{cls:"no",tag:"我不会做"}}
+function fmt(n,d){return n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:d})}
+function parseVal(raw){const s=String(raw??"").trim();if(!s)return null;const n=Number(s);return Number.isFinite(n)?n:NaN}
+function renumber(){[...rowsEl.querySelectorAll(".row")].forEach((row,i)=>{row.querySelector(".idx").textContent=String(i+1)})}
+function addRow(){const row=document.createElement("div");row.className="row";row.innerHTML='<div class="idx"></div><input class="bid" type="number" inputmode="decimal" step="any" min="0" placeholder="Bid"><input class="ask" type="number" inputmode="decimal" step="any" min="0" placeholder="Ask"><button class="del" type="button">×</button>';row.querySelector(".del").onclick=()=>{if(rowsEl.querySelectorAll(".row").length<=1){row.querySelector(".bid").value="";row.querySelector(".ask").value="";return}row.remove();renumber()};row.querySelectorAll("input").forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")calculate()}));rowsEl.appendChild(row);renumber()}
+function calculate(){const items=[...rowsEl.querySelectorAll(".row")].map(row=>({bid:parseVal(row.querySelector(".bid").value),ask:parseVal(row.querySelector(".ask").value)}));const filled=items.filter(x=>x.bid!==null||x.ask!==null);if(!filled.length){errorEl.style.display="block";errorEl.textContent="至少输入一组 Bid / Ask。";resultsEl.style.display="none";return}errorEl.style.display="none";const computed=filled.map(x=>{if(!Number.isFinite(x.bid)||!Number.isFinite(x.ask)||x.bid===null||x.ask===null)return{...x,error:"Bid 和 Ask 都要填"};if(x.ask<x.bid)return{...x,error:"Ask 应 ≥ Bid"};if(x.bid===0&&x.ask===0)return{...x,error:"不能都是 0"};const pct=((x.ask-x.bid)/((x.bid+x.ask)/2))*100;return{...x,pct,bucket:classify(pct)}});resultsEl.innerHTML='<table class="result-table"><thead><tr><th>Bid</th><th>Ask</th><th>价差 / 中间价</th><th>Result</th></tr></thead><tbody>'+computed.map(x=>x.error?`<tr><td>${x.bid??"—"}</td><td>${x.ask??"—"}</td><td colspan="2">${x.error}</td></tr>`:`<tr><td>${fmt(x.bid,4)}</td><td>${fmt(x.ask,4)}</td><td>${fmt(x.pct,2)}%</td><td><span class="badge ${x.bucket.cls}">${x.bucket.tag}</span></td></tr>`).join("")+"</tbody></table>";resultsEl.style.display="block"}
+document.getElementById("add").onclick=()=>addRow();document.getElementById("calc").onclick=calculate;for(let i=0;i<5;i++)addRow();
+</script>
 </body>
 </html>
